@@ -1,0 +1,221 @@
+# Post-Deployment Job
+#
+# Runs after each deployment. Always validates the deployment. Optionally
+# publishes skill content and/or registers the UC MCP Service.
+#
+# Task DAG:
+#   validate_deployment (always)
+#       │
+#       ├─▶ check_first_run (condition: first_run == "true")
+#       │       │
+#       │       ├─ TRUE ─┬─▶ [publish_skill_version] (via OR below)
+#       │       │        ├─▶ check_drop_connection ─▶ reset_connection
+#       │       │        └─▶ create_app_connection (2 conns: REST + MCP)
+#       │       │                ├─▶ register_mcp_service (5 svcs, 1 conn, YAML selectors) ─▶ register_mcp_policy
+#       │       │                └─▶ discover_uc_functions ─▶ register_uc_functions
+#       │       └─ FALSE ▶ (infra tasks skipped)
+#       │
+#       └─▶ check_publish_skills (condition: publish_skills == "true")
+#               │
+#               └─ TRUE ─▶ [publish_skill_version] (via OR below)
+#
+#   publish_skill_version (OR gate: runs if check_first_run=true OR check_publish_skills=true)
+#       depends_on: [check_first_run(true), check_publish_skills(true)]
+#       run_if: AT_LEAST_ONE_SUCCESS
+#
+# Parameters:
+#   first_run (false)        — full setup: connections, services, policy, skills, UC functions
+#   publish_skills (false)   — publish skill content only (no infra changes)
+#   drop_connection (false)  — reset connections before recreating (credential rotation)
+#
+# Trigger: On-demand after each deployment.
+
+resources:
+  jobs:
+    post_deploy:
+      name: '[${bundle.target}] Hi Genie - Post-Deploy'
+      description: >
+        Validates the deployed Hi Genie Orchestrator app (health, migrations,
+        schemas, RLS, endpoints). When first_run=true, also publishes skill
+        content from fixtures and registers the UC MCP Service.
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        purpose: post-deploy
+
+      parameters:
+        - name: first_run
+          default: "false"
+        - name: publish_skills
+          default: "false"
+        - name: drop_connection
+          default: "false"
+
+      tasks:
+        # ---- Always runs: deployment validation ----
+        - task_key: validate_deployment
+          notebook_task:
+            notebook_path: ../src/tests/post_deploy_validation.py
+            base_parameters:
+              app_name: ${var.app_name}
+              secret_scope_name: ${var.secret_scope_name}
+              client_id_dbs_key: ${var.client_id_dbs_key}
+              client_secret_dbs_key: ${var.client_secret_dbs_key}
+              lakebase_project_id: ${var.lakebase_project_id}
+              lakebase_branch: ${var.lakebase_branch}
+              lakebase_database: databricks_postgres
+          environment_key: default
+
+        # ---- Gate: first_run triggers full infra setup + skills ----
+        - task_key: check_first_run
+          depends_on:
+            - task_key: validate_deployment
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.first_run}}"
+            right: "true"
+
+        # ---- Gate: publish_skills triggers skill publishing only ----
+        - task_key: check_publish_skills
+          depends_on:
+            - task_key: validate_deployment
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.publish_skills}}"
+            right: "true"
+
+        # ---- Publish skill content (OR gate: first_run OR publish_skills) ----
+        - task_key: publish_skill_version
+          depends_on:
+            - task_key: check_first_run
+              outcome: "true"
+            - task_key: check_publish_skills
+              outcome: "true"
+          run_if: AT_LEAST_ONE_SUCCESS
+          notebook_task:
+            notebook_path: ../src/deploy/publish_skill.py
+            base_parameters:
+              app_name: ${var.app_name}
+              secret_scope_name: ${var.secret_scope_name}
+              client_id_dbs_key: ${var.client_id_dbs_key}
+              client_secret_dbs_key: ${var.client_secret_dbs_key}
+          environment_key: default
+
+        # ---- Gate: check if connection reset is requested ----
+        - task_key: check_drop_connection
+          depends_on:
+            - task_key: check_first_run
+              outcome: "true"
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.drop_connection}}"
+            right: "true"
+
+        # ---- Reset connection (credential rotation — only when true) ----
+        - task_key: reset_connection
+          depends_on:
+            - task_key: check_drop_connection
+              outcome: "true"
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/deploy/reset_connection.py
+            base_parameters:
+              connection_name: ${var.connection_name}
+              mcp_connection_name: ${var.mcp_connection_name}
+
+        # ---- Create UC HTTP Connections (2: REST /api + MCP /mcp) ----
+        - task_key: create_app_connection
+          depends_on:
+            - task_key: check_first_run
+              outcome: "true"
+            - task_key: reset_connection
+          run_if: NONE_FAILED
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/deploy/create_app_connection.sql
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              app_host: ${var.app_host}
+              secret_scope_name: ${var.secret_scope_name}
+              client_id_dbs_key: ${var.client_id_dbs_key}
+              client_secret_dbs_key: ${var.client_secret_dbs_key}
+              workspace_host: ${var.workspace_host}
+              connection_name: ${var.connection_name}
+              mcp_connection_name: ${var.mcp_connection_name}
+              workers_group_name: ${var.workers_group_name}
+
+        # ---- Register MCP Services (5 services, 1 connection, YAML-driven selectors) ----
+        - task_key: register_mcp_service
+          depends_on:
+            - task_key: create_app_connection
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/deploy/register_mcp_service.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              mcp_connection_name: ${var.mcp_connection_name}
+              architect_mcp_service_name: ${var.architect_mcp_service_name}
+              reviewer_mcp_service_name: ${var.reviewer_mcp_service_name}
+              worker_mcp_service_name: ${var.worker_mcp_service_name}
+              dispatcher_mcp_service_name: ${var.dispatcher_mcp_service_name}
+              orchestrator_mcp_service_name: ${var.orchestrator_mcp_service_name}
+              workers_group_name: ${var.workers_group_name}
+              mcp_service_rate_limit_qpm: ${var.mcp_service_rate_limit_qpm}
+              mcp_service_user_rate_limit_qpm: ${var.mcp_service_user_rate_limit_qpm}
+
+        # ---- Register ASK-gate policy on all 4 MCP services ----
+        - task_key: register_mcp_policy
+          depends_on:
+            - task_key: register_mcp_service
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/deploy/register_mcp_policy.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              architect_mcp_service_name: ${var.architect_mcp_service_name}
+              reviewer_mcp_service_name: ${var.reviewer_mcp_service_name}
+              worker_mcp_service_name: ${var.worker_mcp_service_name}
+              dispatcher_mcp_service_name: ${var.dispatcher_mcp_service_name}
+              workers_group_name: ${var.workers_group_name}
+
+        # ---- Discover UC function templates (parallel to MCP service) ----
+        - task_key: discover_uc_functions
+          depends_on:
+            - task_key: create_app_connection
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/deploy/discover_uc_functions.py
+
+        # ---- Register each UC function (forEach over discovered files) ----
+        - task_key: register_uc_functions
+          depends_on:
+            - task_key: discover_uc_functions
+          for_each_task:
+            inputs: "{{tasks.discover_uc_functions.values.function_files}}"
+            task:
+              task_key: register_single_function
+              environment_key: default
+              notebook_task:
+                notebook_path: ../src/deploy/register_uc_function.py
+                base_parameters:
+                  catalog: ${var.catalog}
+                  schema: ${var.schema}
+                  connection_name: ${var.connection_name}
+                  workers_group_name: ${var.workers_group_name}
+                  function_file: "{{input.function_file}}"
+
+      environments:
+        - environment_key: default
+          spec:
+            client: '1'
+
+      max_concurrent_runs: 1
+
+      email_notifications:
+        on_failure:
+          - ${var.run_as_user}

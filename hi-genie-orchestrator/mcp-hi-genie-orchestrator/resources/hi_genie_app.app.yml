@@ -1,0 +1,109 @@
+# Hi Genie Orchestrator — Databricks App
+#
+# Supervisor dispatch API (/api/v1) + Workstream MCP (/mcp) for durable
+# orchestration context, bounded state, and semantic memory.
+#
+# Source code lives at the bundle root (AppKit project).
+# Path resolution: resources/*.yml uses ../ to reach bundle root.
+
+resources:
+  apps:
+    app:
+      name: ${var.app_name}
+      description: >
+        Hi Genie Orchestrator — Supervisor dispatch API and Workstream MCP
+        for durable orchestration context, bounded state, and semantic memory.
+      source_code_path: ..
+      user_api_scopes:
+        - sql
+        - ai-gateway
+        - mcp.functions
+        - mcp.external
+        - genie
+        - postgres
+        - model-serving
+        - catalog.catalogs:read
+        - catalog.schemas:read
+        - catalog.tables:read
+        - catalog.connections
+        - files
+        - vector-search
+        - workspace.workspace
+
+      resources:
+        # ── Lakebase (dispatch + state schemas) ───────────────────────
+        - name: postgres
+          postgres:
+            branch: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch}
+            database: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch}/databases/${var.lakebase_database_id}
+            permission: CAN_CONNECT_AND_CREATE
+
+        # ── Secrets (SPN credentials for background operations) ───────────
+        - name: app-client-id
+          secret:
+            scope: ${var.secret_scope_name}
+            key: ${var.client_id_dbs_key}
+            permission: READ
+        - name: app-client-secret
+          secret:
+            scope: ${var.secret_scope_name}
+            key: ${var.client_secret_dbs_key}
+            permission: READ
+
+        # ── Embedding endpoint name (injected by infra UC Setup Job) ─────
+        - name: embedding-endpoint
+          secret:
+            scope: ${var.secret_scope_name}
+            key: ${var.embedding_endpoint_key}
+            permission: READ
+
+        # ── MLflow experiment (trace storage, created by infra bundle) ────
+        # Platform grants the app SPN edit access and injects experiment
+        # ID as MLFLOW_EXPERIMENT_ID via valueFrom in app.yaml.
+        - name: experiment
+          experiment:
+            experiment_id: '${var.mlflow_experiment_id}'
+            permission: CAN_EDIT
+
+      # ── Telemetry (OTel → Unity Catalog) ────────────────────────────
+      telemetry_export_destinations:
+        - unity_catalog:
+            logs_table: ${var.catalog}.${var.schema}.hi_genie_otel_logs
+            metrics_table: ${var.catalog}.${var.schema}.hi_genie_otel_metrics
+            traces_table: ${var.catalog}.${var.schema}.hi_genie_otel_traces
+
+# ---------------------------------------------------------------------------
+# Target-specific overrides
+#
+# hls_fde: permissions handled by top-level target permissions in
+#          databricks.yml (CAN_MANAGE → matthew + SPN, CAN_RUN → users).
+# dev:     set explicitly since no top-level permissions in dev target.
+# ---------------------------------------------------------------------------
+targets:
+
+  dev:
+    resources:
+      apps:
+        app:
+          permissions:
+            - service_principal_name: "84b36586-1ca7-4756-b39e-551a79058c55"
+              level: CAN_USE
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+
+  prod:
+    resources:
+      apps:
+        app:
+          # Git deployment — pulls source directly from the release branch.
+          # Container builds from Git; workspace source_code_path is ignored.
+          # For SIT: app_deploy.sh overrides with workspace-source deployment.
+          git_repository:
+            url: https://github.com/matthew-gigl-db/brainstorming
+            provider: gitHub
+          git_source:
+            branch: release
+            source_code_path: genie-workstream-orchestrator/hi-genie-orchestrator/mcp-hi-genie-orchestrator
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE

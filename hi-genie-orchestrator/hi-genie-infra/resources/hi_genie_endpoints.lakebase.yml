@@ -1,0 +1,58 @@
+# Lakebase Endpoints — Hi Genie Orchestrator
+#
+# One READ_WRITE endpoint per branch. Each endpoint scales independently
+# and has its own suspend timeout for cost optimization.
+#
+# Both endpoints are always deployed. The app bundle connects to the
+# endpoint matching its target's branch:
+#   - dev target    → development_endpoint (on development branch)
+#   - hls_fde/prod  → production_endpoint  (on production branch)
+
+resources:
+  postgres_endpoints:
+
+    # -------------------------------------------------------------------------
+    # production endpoint — primary RW on the production branch
+    #
+    # Auto-created with the project; adopted via replace_existing.
+    # Serves hls_fde and prod app deployments.
+    # -------------------------------------------------------------------------
+    production_endpoint:
+      endpoint_id: primary
+      parent: ${resources.postgres_branches.production_branch.name}
+      endpoint_type: ENDPOINT_TYPE_READ_WRITE
+
+      # Adopt the auto-created endpoint into bundle state
+      replace_existing: true
+
+      # Autoscaling: 0.5–4 CU
+      autoscaling_limit_min_cu: 0.5
+      autoscaling_limit_max_cu: 4
+
+      # Scale-to-zero after 5 minutes of inactivity
+      suspend_timeout_duration: "300s"
+
+      lifecycle:
+        prevent_destroy: true
+
+    # -------------------------------------------------------------------------
+    # development endpoint — primary RW on the development branch
+    #
+    # Created fresh (not adopted). Serves the dev app deployment.
+    # More aggressive suspend timeout to minimize idle cost.
+    # -------------------------------------------------------------------------
+    development_endpoint:
+      endpoint_id: primary
+      parent: ${resources.postgres_branches.development_branch.name}
+      endpoint_type: ENDPOINT_TYPE_READ_WRITE
+
+      # Adopt the existing endpoint into bundle state
+      replace_existing: true
+
+      # Autoscaling: 0.5–4 CU (same ceiling as production for compatibility)
+      autoscaling_limit_min_cu: 0.5
+      autoscaling_limit_max_cu: 4
+
+      # Aggressive scale-to-zero for dev cost savings (60s)
+      suspend_timeout_duration: "60s"
+

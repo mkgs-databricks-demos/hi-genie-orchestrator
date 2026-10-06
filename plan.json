@@ -1,0 +1,339 @@
+{
+  "project_name": "Genie Workstream Orchestrator",
+  "orchestration_id": "orch-2026-08-14-self-build",
+  "version": "1.0.0",
+  "created_at": "2026-08-14T19:25:27Z",
+  "created_by": "matthew.giglia@databricks.com",
+  "source_documents": [
+    "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/INDEX.md",
+    "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/PROJECT_MEMORY.md"
+  ],
+  "context_documents": [
+    {
+      "key": "index",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/INDEX.md",
+      "purpose": "Document manifest, build order, module-to-architecture mapping"
+    },
+    {
+      "key": "input-contract",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/input-contract.md",
+      "purpose": "What the skill accepts as input; extraction rules"
+    },
+    {
+      "key": "workstream-spec",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/workstream-spec.md",
+      "purpose": "Definition of a valid workstream; 5 types; sizing constraints"
+    },
+    {
+      "key": "decomposition-rules",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/decomposition-rules.md",
+      "purpose": "Algorithm for turning deliverables into a DAG; dependency types; isolation"
+    },
+    {
+      "key": "state-layer",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/state-layer.md",
+      "purpose": "State machine, Lakebase schema, file-based fallback, read/write protocol"
+    },
+    {
+      "key": "prompt-contract",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/prompt-contract.md",
+      "purpose": "5-section prompt structure; substitution variables; supervisor prompt spec"
+    },
+    {
+      "key": "backend-contracts",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/backend-contracts.md",
+      "purpose": "Per-backend execution interface: validate/execute/verify/rollback"
+    },
+    {
+      "key": "scheduling-contract",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/scheduling-contract.md",
+      "purpose": "Cron rules, WS-INIT lifecycle control, fire-once semantics"
+    },
+    {
+      "key": "execution-protocol",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/execution-protocol.md",
+      "purpose": "Full lifecycle of a workstream fire; gate/execute/validate/complete"
+    },
+    {
+      "key": "ws-init-protocol",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/ws-init-protocol.md",
+      "purpose": "Supervisor tick model, decision engine, prompt synthesis, sub-workstream spawning"
+    },
+    {
+      "key": "bundle-strategy",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/architecture/bundle-strategy.md",
+      "purpose": "Dependency-ordered bundle partitioning, scaffolding, deploy.sh generation"
+    },
+    {
+      "key": "ws-init-template",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/templates/ws-init-template.md",
+      "purpose": "Supervisor prompt template with 8-priority decision tree"
+    },
+    {
+      "key": "worker-template",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/templates/worker-prompt-template.md",
+      "purpose": "Worker prompt 5-section lifecycle template"
+    },
+    {
+      "key": "plan-schema",
+      "path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/templates/plan-schema.md",
+      "purpose": "JSON Schema for plan.json; validation rules; generation guidance"
+    }
+  ],
+  "project_root": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator",
+  "orchestration_root": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/orchestration",
+  "state": {
+    "mode": "file",
+    "file": {
+      "state_directory": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/orchestration/state/"
+    }
+  },
+  "git": {
+    "enabled": true,
+    "remote_url": "https://github.com/matthew-gigl-db/brainstorming.git",
+    "branch_prefix": "mg-genie-orchestrator-build",
+    "main_branch": "main",
+    "repo_path": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator"
+  },
+  "bundles": [],
+  "workstreams": [
+    {
+      "key": "ws-a",
+      "name": "Core State Machine",
+      "description": "Define the full workstream state machine: states, transitions, guards, and the contract that backends and tracking modules implement against. This is the foundational vocabulary for all other modules.",
+      "type": "foundation",
+      "execution_backend": "custom",
+      "depends_on": [],
+      "file_scope": [
+        "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/state-machine.md"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/state-machine.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [],
+      "estimated_duration_min": 20,
+      "max_retries": 1,
+      "branch_name": "mg-genie-orchestrator-build-ws-a",
+      "context_docs": ["state-layer", "scheduling-contract", "execution-protocol"],
+      "execution_notes": "Read state-layer.md for the 7-state machine (NOT_STARTED, GATING, IN_PROGRESS, VALIDATING, RETRYING, COMPLETE, BLOCKED). Define: state enum, valid transitions, guard conditions per transition, timeout rules, retry semantics. Output must be imperative skill-module format per project conventions."
+    },
+    {
+      "key": "ws-b",
+      "name": "Core Decomposition & DAG Builder",
+      "description": "Build the decomposition engine (input analysis, deliverable extraction, workstream sizing) and the DAG builder (dependency inference, isolation validation, topological ordering).",
+      "type": "standard",
+      "execution_backend": "custom",
+      "depends_on": [],
+      "file_scope": [
+        "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/decomposition.md",
+        "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/dag-builder.md"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/decomposition.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/dag-builder.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [],
+      "estimated_duration_min": 30,
+      "max_retries": 1,
+      "branch_name": "mg-genie-orchestrator-build-ws-b",
+      "context_docs": ["input-contract", "workstream-spec", "decomposition-rules", "plan-schema"],
+      "execution_notes": "Decomposition module: define how to parse source documents, extract deliverables, identify isolation boundaries, and size workstreams (5-45 min sweet spot). DAG builder: dependency inference algorithm, cycle detection, topological sort, file-scope overlap validation, plan.json generation. Both modules use imperative voice."
+    },
+    {
+      "key": "ws-c",
+      "name": "Core Prompt Synthesis",
+      "description": "Build the prompt synthesis engine that takes a workstream definition from plan.json, selects the correct template, resolves substitution variables, injects backend-specific instructions, and produces a self-contained scheduled-task prompt.",
+      "type": "standard",
+      "execution_backend": "custom",
+      "depends_on": ["ws-a", "ws-b"],
+      "file_scope": [
+        "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/prompt-synthesis.md"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/prompt-synthesis.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "file_exists",
+          "target": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/state-machine.md"
+        },
+        {
+          "type": "file_exists",
+          "target": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/dag-builder.md"
+        }
+      ],
+      "estimated_duration_min": 25,
+      "max_retries": 1,
+      "branch_name": "mg-genie-orchestrator-build-ws-c",
+      "context_docs": ["prompt-contract", "backend-contracts", "ws-init-template", "worker-template"],
+      "execution_notes": "Define: template selection logic (ws-init vs worker vs ws-final), variable resolution from plan.json fields, context document injection, backend-specific EXECUTE section generation, state-reference injection (state names from state-machine.md). Must reference the 5-section structure (GATE/CONTEXT/EXECUTE/VALIDATE/COMPLETE) and produce prompts that are fully self-contained."
+    },
+    {
+      "key": "ws-d",
+      "name": "Backend Modules",
+      "description": "Implement the 4 execution backend modules (databricks-bundle, notebook-run, sql-execution, custom), each defining validate/execute/verify/rollback for its backend type.",
+      "type": "standard",
+      "execution_backend": "custom",
+      "depends_on": ["ws-a"],
+      "file_scope": [
+        "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/backends/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/backends/bundle.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/backends/notebook.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/backends/sql.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/backends/custom.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "file_exists",
+          "target": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/state-machine.md"
+        }
+      ],
+      "estimated_duration_min": 35,
+      "max_retries": 1,
+      "branch_name": "mg-genie-orchestrator-build-ws-d",
+      "context_docs": ["backend-contracts", "execution-protocol", "bundle-strategy"],
+      "execution_notes": "Each backend file defines the 4-method interface (validate, execute, verify, rollback) with concrete instructions for its backend type. bundle.md: databricks bundle validate/deploy/destroy, source-linked mode. notebook.md: notebook execution via jobs API or interactive run. sql.md: SQL statement execution against a warehouse. custom.md: free-form instructions with custom verification. Reference state-machine.md for state transitions each method triggers."
+    },
+    {
+      "key": "ws-e",
+      "name": "Tracking Modules",
+      "description": "Build the tracking layer: Lakebase Postgres DDL (6 tables), the file-based status protocol, and the observability module (tick logging, duration tracking, queryable history).",
+      "type": "standard",
+      "execution_backend": "custom",
+      "depends_on": ["ws-a"],
+      "file_scope": [
+        "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/tracking/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/tracking/lakebase-schema.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/tracking/status-protocol.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/tracking/observability.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "file_exists",
+          "target": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/state-machine.md"
+        }
+      ],
+      "estimated_duration_min": 30,
+      "max_retries": 1,
+      "branch_name": "mg-genie-orchestrator-build-ws-e",
+      "context_docs": ["state-layer", "execution-protocol", "ws-init-protocol"],
+      "execution_notes": "lakebase-schema.md: Full DDL for 6 tables (orchestrations, workstreams, ticks, transitions, artifacts, events). Include indexes, constraints, advisory lock patterns. status-protocol.md: Dual-mode read/write protocol (Lakebase SQL vs file-based YAML frontmatter). Define atomic update semantics for both modes. observability.md: Tick logging format, duration inference, queryable history, dashboard-ready views."
+    },
+    {
+      "key": "ws-final",
+      "name": "Integration Verification & Summary",
+      "description": "Verify all 10 skill module files exist and are internally consistent. Produce SUMMARY.md with cross-references, a SKILL.md update linking to all modules, and a session summary.",
+      "type": "final",
+      "execution_backend": "custom",
+      "depends_on": ["ws-a", "ws-b", "ws-c", "ws-d", "ws-e"],
+      "file_scope": [
+        "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/orchestration/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/orchestration/SUMMARY.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/orchestration/INTEGRATION_REPORT.md",
+          "verification": { "check": "file_non_empty" },
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "file_exists",
+          "target": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/core/prompt-synthesis.md"
+        },
+        {
+          "type": "file_exists",
+          "target": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/backends/bundle.md"
+        },
+        {
+          "type": "file_exists",
+          "target": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-genie-workstream-orchestrator/genie-workstream-orchestrator/skill/tracking/lakebase-schema.md"
+        }
+      ],
+      "estimated_duration_min": 15,
+      "max_retries": 0,
+      "branch_name": "mg-genie-orchestrator-build-ws-final",
+      "context_docs": ["index", "plan-schema"],
+      "execution_notes": "Verify cross-references: state-machine states referenced in backends and tracking match. Verify prompt-synthesis references all 4 backends. Verify tracking handles all 7 states. Produce executive summary and integration report. Update SKILL.md to link all new modules."
+    }
+  ],
+  "scheduling": {
+    "ws_init_cron": "0 0 */1 * * ?",
+    "worker_cron": "0 0 */1 * * ?",
+    "note": "Platform minimum cadence is hourly. Sub-hourly crons are rejected by scheduleAgentTool.",
+    "timezone": "America/New_York"
+  },
+  "constraints": {
+    "max_concurrent_workstreams": 3,
+    "max_total_retries": 4,
+    "max_duration_hours": 4,
+    "require_human_approval_for_subworkstreams": true,
+    "source_linked": false
+  }
+}

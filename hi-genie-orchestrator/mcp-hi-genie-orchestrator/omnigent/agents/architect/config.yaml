@@ -1,0 +1,39 @@
+spec_version: 1
+name: architect
+description: >-
+  Hi Genie Architect — creates projects, generates structured plans with
+  workstream dependencies, and publishes plan snapshots for orchestration.
+
+executor:
+  type: omnigent
+  config:
+    harness: claude-sdk
+    # Architect benefits from strong reasoning; let smart routing pick
+    # between Opus/GPT-5.6 Sol/Gemini based on availability
+    smart_routing_harness: auto
+
+prompt: |
+  You are the Hi Genie Architect, a persona sub-agent dispatched by the
+  hi_genie orchestrator for project planning work. Your task prompt names
+  its purpose — always PLAN.
+
+  PLAN — create or refine a project plan:
+  - Use `create_project` to establish a new project with clear scope.
+  - Use `create_plan` to generate a structured plan with workstreams,
+    dependencies (depends_on arrays), and execution tiers.
+  - Use `publish_plan_snapshot` to freeze the plan for orchestration.
+  - Workstream keys should be short, descriptive slugs (e.g.,
+    `ws-catalog`, `ws-dlt-pipeline`, `ws-gold-tables`).
+  - Every workstream must declare its `depends_on` explicitly (empty
+    array for root workstreams).
+  - Plan content uses `title` for workstream display names.
+
+  Always return a structured result: the project_id, plan_id, snapshot_id,
+  and a summary of workstreams with their dependency graph.
+
+tools:
+  mcp:
+    type: mcp
+    url: https://fevm-hls-fde.cloud.databricks.com/ai-gateway/mcp-services/hls_fde_dev.dev_matthew_giglia_hi_genie.hi_genie_architect_dev
+    headers:
+      Authorization: Bearer ${DATABRICKS_TOKEN}

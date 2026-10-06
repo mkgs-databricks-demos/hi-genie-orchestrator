@@ -1,0 +1,89 @@
+# UC Setup Job — Hi Genie Orchestrator Infrastructure
+#
+# Post-deploy workflow that provisions platform-level Lakebase settings
+# not expressible as DABs resources (extensions, DDL, grants).
+# Runs on-demand after `bundle deploy`; safe to re-run (idempotent).
+#
+# Job parameters inherit from bundle resources to ensure consistency
+# with the actual deployed infrastructure — never from loose variables.
+#
+# NOTE: Lakebase Search must be enabled manually at the project level
+# before this job can succeed. The notebook checks for this and provides
+# clear remediation steps if it's not enabled.
+
+resources:
+  jobs:
+    uc_setup:
+      name: "[${bundle.target}] Hi Genie Infra - UC Setup"
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        env: ${bundle.target}
+
+      # Job-level parameters — defaults inherit from bundle resources.
+      # This ensures the job always operates on the actual deployed objects.
+      parameters:
+        - name: lakebase_project_id
+          default: ${resources.postgres_projects.hi_genie_lakebase.project_id}
+        - name: branches
+          default: "production,development"
+        - name: database_name
+          default: "databricks-postgres"
+        - name: catalog
+          default: ${resources.schemas.hi_genie_schema.catalog_name}
+        - name: schema
+          default: ${resources.schemas.hi_genie_schema.name}
+        - name: secret_scope_name
+          default: ${var.secret_scope_name}
+        - name: app_name
+          default: ${var.app_name}
+        - name: embedding_endpoint_name
+          default: ${var.embedding_endpoint_name}
+        - name: embedding_endpoint_key
+          default: ${var.embedding_endpoint_key}
+
+      tasks:
+        - task_key: ensure_experiment_directories
+          notebook_task:
+            notebook_path: ../src/ensure_experiment_directories.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              schema: "{{job.parameters.schema}}"
+          environment_key: default
+
+        - task_key: install_lakebase_extensions
+          depends_on:
+            - task_key: ensure_experiment_directories
+          notebook_task:
+            notebook_path: ../src/lakebase_platform_setup.py
+            base_parameters:
+              lakebase_project_id: "{{job.parameters.lakebase_project_id}}"
+              branches: "{{job.parameters.branches}}"
+              database_name: "{{job.parameters.database_name}}"
+              catalog: "{{job.parameters.catalog}}"
+              schema: "{{job.parameters.schema}}"
+          environment_key: default
+
+        - task_key: configure_app_secrets
+          depends_on:
+            - task_key: install_lakebase_extensions
+          notebook_task:
+            notebook_path: ../src/configure_app_secrets.py
+            base_parameters:
+              secret_scope_name: "{{job.parameters.secret_scope_name}}"
+              app_name: "{{job.parameters.app_name}}"
+              embedding_endpoint_name: "{{job.parameters.embedding_endpoint_name}}"
+              embedding_endpoint_key: "{{job.parameters.embedding_endpoint_key}}"
+          environment_key: default
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+
+      run_as:
+        user_name: ${var.run_as_user}
+
+      email_notifications:
+        on_failure:
+          - matthew.giglia@databricks.com

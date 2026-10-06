@@ -1,0 +1,331 @@
+# Databricks Asset Bundle — mcp-hi-genie-orchestrator
+# Hi Genie Orchestrator App: Supervisor dispatch API + Workstream MCP.
+# Deploy AFTER hi-genie-infra bundle (ws-0) which provisions Lakebase,
+# UC schema, secret scope, SQL warehouse, and volumes.
+#
+# Pattern follows lakeloom-ai conventions. deploy.sh passes infra-derived
+# values as --var overrides to ensure consistency.
+#
+# See https://docs.databricks.com/en/dev-tools/bundles/settings.html
+
+bundle:
+  name: mcp-hi-genie-orchestrator
+
+sync:
+  exclude:
+    # Collaboration protocol artifacts — never deploy with the app
+    - .review-protocol/
+    - hi_genie/
+    - hey_polly/
+    # Test and fixture data
+    - fixtures/sessions/
+    - tests/
+    # Internal project context (no secrets, but unnecessary in container)
+    - PROJECT_MEMORY.md
+    # Deploy-time scripts (never executed inside the container)
+    - "*.sh"
+
+include:
+  - resources/*.yml
+
+# ---------------------------------------------------------------------------
+# Variable declarations
+# ---------------------------------------------------------------------------
+#
+# CONVENTION — infra-derived values:
+#   catalog, schema, secret_scope_name, lakebase_project_id, and SPN key
+#   names MUST match the deployed hi-genie-infra bundle. deploy.sh resolves
+#   these from `databricks bundle summary` on the infra bundle and passes
+#   them as --var overrides. Target defaults provide sane fallbacks for
+#   standalone `databricks bundle validate`.
+#
+# CONVENTION — secret scope key names:
+#   SPN credential key names are schema-qualified per target (matching infra
+#   convention) so multiple schemas can share a single scope without collisions.
+# ---------------------------------------------------------------------------
+variables:
+  # ── Infrastructure-derived (passed by deploy.sh) ────────────────────────
+  catalog:
+    description: >
+      Unity Catalog catalog for Hi Genie data objects.
+      Resolved from infra bundle schema resource at deploy time.
+  schema:
+    description: >
+      Unity Catalog schema name (fully resolved, including dev-mode prefix).
+      Resolved from infra bundle schema resource at deploy time.
+  secret_scope_name:
+    description: Databricks secret scope for Hi Genie credentials.
+    default: hi_genie_credentials
+  lakebase_project_id:
+    description: >
+      Lakebase Autoscaling project ID. Single project shared across all
+      targets; isolation is via branches (production / development).
+      Resolved from infra bundle postgres_projects resource.
+    default: hi-genie-orchestrator
+  lakebase_branch:
+    description: >
+      Lakebase branch name for this target. Controls which branch the app
+      connects to: 'production' for hls_fde/prod, 'development' for dev.
+    default: production
+  warehouse_id:
+    description: >
+      SQL Warehouse ID for DDL operations (CREATE CONNECTION, GRANTs).
+      Deployed by the hi-genie-infra bundle as infra_warehouse.
+      Resolved from infra bundle summary at deploy time.
+  lakebase_database_id:
+    description: >
+      Lakebase database resource ID (auto-generated on first project deploy).
+      Resolved by deploy.sh via: databricks postgres list-databases
+      projects/{project_id}/branches/{lakebase_branch}
+
+  # ── SPN credential key names (schema-qualified, per target) ─────────────
+  client_id_dbs_key:
+    description: >
+      Secret scope key name for the App SPN OAuth2 M2M client_id.
+      Schema-qualified per target to avoid collisions in shared scopes.
+    default: client_id
+  client_secret_dbs_key:
+    description: >
+      Secret scope key name for the App SPN OAuth2 M2M client_secret.
+      Schema-qualified per target to avoid collisions in shared scopes.
+    default: client_secret
+
+  # ── Embedding endpoint (injected into secret scope by infra UC Setup Job) ─
+  embedding_endpoint_key:
+    description: >
+      Secret scope key name for the embedding serving endpoint name.
+      Infra UC Setup Job writes the actual endpoint name to this key
+      after provisioning. Schema-qualified per target.
+    default: embedding_endpoint_name
+
+  # ── UC MCP Connections & Worker Group ───────────────────────────────────
+  connection_name:
+    description: >
+      Metastore-level UC HTTP connection for REST API surface (base_path: /api).
+      Used by UC functions for http_request(conn => ...) calls.
+    default: hi_genie_orchestrator_conn
+  mcp_connection_name:
+    description: >
+      Single MCP HTTP connection (base_path: /mcp). Exposes all 39 tools.
+      All 5 MCP services reference this one connection; persona scoping is
+      handled by include_tool_selectors on each service, not by routing.
+    default: hi_genie_mcp_conn
+  architect_mcp_service_name:
+    description: >
+      Architect UC MCP Service. Tool subset controlled by YAML selectors.
+    default: hi_genie_architect
+  reviewer_mcp_service_name:
+    description: >
+      Reviewer UC MCP Service. Tool subset controlled by YAML selectors.
+    default: hi_genie_reviewer
+  worker_mcp_service_name:
+    description: >
+      Worker UC MCP Service. Tool subset controlled by YAML selectors.
+    default: hi_genie_worker
+  dispatcher_mcp_service_name:
+    description: >
+      Dispatcher UC MCP Service. Tool subset controlled by YAML selectors.
+    default: hi_genie_dispatcher
+  orchestrator_mcp_service_name:
+    description: >
+      Full Orchestrator UC MCP Service. All 39 tools (empty selectors = all).
+    default: hi_genie_orchestrator
+  workers_group_name:
+    description: >
+      Workspace group whose members receive USE CONNECTION, USE CATALOG,
+      and USE SCHEMA grants for the MCP Service. Env-suffixed.
+    default: hi-genie-workers
+
+  # ── MCP Service Governance ─────────────────────────────────────────────
+  mcp_service_rate_limit_qpm:
+    description: >
+      Global rate limit (requests per minute) for the MCP Service.
+      Protects the app from being overwhelmed. All callers share this cap.
+    default: "120"
+  mcp_service_user_rate_limit_qpm:
+    description: >
+      Default per-user/SPN rate limit (requests per minute).
+      Prevents any single agent from monopolizing the service.
+    default: "30"
+
+  # ── App connectivity (resolved at deploy time) ─────────────────────────
+  app_host:
+    description: >
+      App hostname (no protocol) for the MCP endpoint connection.
+      Resolved from app platform URL at deploy time.
+  workspace_host:
+    description: >
+      Workspace hostname (no protocol) for OAuth token endpoint.
+    default: fevm-hls-fde.cloud.databricks.com
+
+  # ── MLflow experiment (resolved from infra bundle at deploy time) ────────
+  mlflow_experiment_id:
+    description: >
+      Numeric experiment ID for MLflow 3 trace storage. Created by the
+      infra bundle (resources.experiments.hi_genie_traces). Resolved by
+      deploy.sh from infra bundle summary. Platform grants App SPN
+      CAN_EDIT and injects the ID as MLFLOW_EXPERIMENT_ID at runtime.
+
+  # ── Observability ───────────────────────────────────────────────────────
+  mlflow_trace_retention_days:
+    description: >
+      Number of days to retain raw MLflow traces before cleanup.
+      Consumed by the trace-cleanup job (if configured).
+    default: "90"
+
+  # ── App name (target-specific) ──────────────────────────────────────────
+  app_name:
+    description: >
+      Platform app name. Target-specific to allow dev and production
+      apps to coexist in the same workspace.
+
+  # ── Run-as / Service Principals ─────────────────────────────────────────
+  run_as_user:
+    description: The user or service principal that the app runs as.
+  higher_level_service_principal:
+    description: Service principal for higher-level (non-dev) deployments.
+    default: acf021b4-87c6-44ff-b3d7-45c59d63fe4d
+
+  # ── Tags (consistent with infra bundle) ─────────────────────────────────
+  tags_project:
+    default: hi-genie-orchestrator
+    description: Project tag for deployed resources.
+  tags_businessUnit:
+    default: Healthcare and Life Sciences
+    description: Business unit tag for cost and ROI allocation.
+  tags_developer:
+    default: matthew.giglia@databricks.com
+    description: Primary developer contact for Ops.
+  tags_requestedBy:
+    default: Forward Deployed Engineering
+    description: Primary business-unit stakeholder(s).
+  tags_RemoveAfter:
+    default: 2027-08-01
+    description: >
+      Required Databricks demo-environment tag for long-lived demos.
+      Cannot exceed one year after the deployment date.
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+targets:
+
+  # ── dev ──────────────────────────────────────────────────────────────────
+  dev:
+    mode: development
+    default: true
+    presets:
+      source_linked_deployment: true
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: hls_fde_dev
+      schema: dev_matthew_giglia_hi_genie
+      lakebase_project_id: hi-genie-orchestrator
+      lakebase_branch: development
+      lakebase_database_id: "databricks-postgres"
+      warehouse_id: "7de72d0573acef5e"
+      connection_name: hi_genie_orchestrator_conn_dev
+      mcp_connection_name: hi_genie_mcp_conn_dev
+      architect_mcp_service_name: hi_genie_architect_dev
+      reviewer_mcp_service_name: hi_genie_reviewer_dev
+      worker_mcp_service_name: hi_genie_worker_dev
+      dispatcher_mcp_service_name: hi_genie_dispatcher_dev
+      orchestrator_mcp_service_name: hi_genie_orchestrator_dev
+      workers_group_name: hi-genie-workers-dev
+      app_host: mcp-hi-genie-orchestrator-dev-7474657291520070.aws.databricksapps.com
+      mlflow_experiment_id: "4038008988926083"
+      run_as_user: matthew.giglia@databricks.com
+      app_name: mcp-hi-genie-orchestrator-dev
+      # SPN credential key names (schema-qualified for dev)
+      client_id_dbs_key: client_id_dev_matthew_giglia_hi_genie
+      client_secret_dbs_key: client_secret_dev_matthew_giglia_hi_genie
+      embedding_endpoint_key: embedding_endpoint_dev_matthew_giglia_hi_genie
+
+  # ── hls_fde (production — same workspace as dev) ────────────────────────
+  hls_fde:
+    mode: production
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: hls_fde
+      schema: hi_genie
+      lakebase_project_id: hi-genie-orchestrator
+      lakebase_branch: production
+      lakebase_database_id: ""  # Resolved by deploy.sh after infra deploy
+      mlflow_experiment_id: ""   # Resolved by deploy.sh from infra bundle
+      warehouse_id: ""  # Resolved by deploy.sh from infra bundle
+      app_host: ""      # Resolved by deploy.sh from app platform
+      run_as_user: ${var.higher_level_service_principal}
+      app_name: mcp-hi-genie-orchestrator
+      # SPN credential key names (schema-qualified for production)
+      client_id_dbs_key: client_id_hi_genie
+      client_secret_dbs_key: client_secret_hi_genie
+    permissions:
+      - user_name: matthew.giglia@databricks.com
+        level: CAN_MANAGE
+      - group_name: users
+        level: CAN_RUN
+      # hls_fde_admin — inherited CAN_MANAGE from parent workspace folder
+      - service_principal_name: 1918013d-90e8-4e78-b2e9-7596ca2dbfae
+        level: CAN_MANAGE  
+      - service_principal_name: ${var.higher_level_service_principal}
+        level: CAN_MANAGE
+
+  # ── prod (system integration testing — same workspace, isolated schema) ───
+  prod:
+    mode: production
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: matthew.giglia@databricks.com
+    variables:
+      catalog: hls_fde
+      schema: hi_genie_prod
+      lakebase_project_id: hi-genie-orchestrator
+      lakebase_branch: production
+      lakebase_database_id: ""  # Resolved by deploy.sh after infra deploy
+      mlflow_experiment_id: ""   # Resolved by deploy.sh from infra bundle
+      run_as_user: matthew.giglia@databricks.com
+      warehouse_id: ""  # Resolved by deploy.sh from infra bundle
+      app_host: ""      # Resolved by deploy.sh from app platform
+      app_name: mcp-hi-genie-orchestrator-prod
+      # SPN credential key names (schema-qualified for prod)
+      client_id_dbs_key: client_id_hi_genie_prod
+      client_secret_dbs_key: client_secret_hi_genie_prod
+      embedding_endpoint_key: embedding_endpoint_hi_genie_prod
+    permissions:
+      - user_name: matthew.giglia@databricks.com
+        level: CAN_MANAGE
+      - group_name: users
+        level: CAN_RUN
+      - service_principal_name: 1918013d-90e8-4e78-b2e9-7596ca2dbfae
+        level: CAN_MANAGE

@@ -1,0 +1,224 @@
+# Databricks Asset Bundle — hi-genie-infra
+# Shared infrastructure for the Hi Genie Orchestrator.
+# Deploy this bundle BEFORE the mcp-hi-genie-orchestrator app bundle.
+#
+# Manages: Unity Catalog schemas/volumes/grants, secret scopes,
+#          SQL warehouses, Lakebase projects.
+#
+# See https://docs.databricks.com/en/dev-tools/bundles/settings.html
+
+bundle:
+  name: "hi-genie-infra"
+
+include:
+  - resources/*.schema.yml
+  - resources/*.experiment.yml
+  - resources/*.secret_scope.yml
+  - resources/*.sql_warehouse.yml
+  - resources/*.lakebase.yml
+  - resources/*.volume.yml
+  - resources/*.job.yml
+  - resources/*/*.yml
+
+# ---------------------------------------------------------------------------
+# Variable declarations
+# Assigned per-target below; referenced in resource YAML files.
+# ---------------------------------------------------------------------------
+#
+# CONVENTION — schema & catalog references:
+#   The `catalog` and `schema` variables below feed ONLY into the schema
+#   resource definition (resources/hi_genie.schema.yml).
+#
+#   All OTHER resources (jobs, apps, volumes, etc.) in this bundle and in
+#   the companion mcp-hi-genie-orchestrator app bundle MUST reference the
+#   schema through deployed-resource substitutions:
+#
+#     ${resources.schemas.hi_genie_schema.catalog_name}   — catalog
+#     ${resources.schemas.hi_genie_schema.name}            — schema
+#     ${resources.schemas.hi_genie_schema.id}              — schema ID
+#
+#   Similarly, the SQL warehouse is referenced as:
+#     ${resources.sql_warehouses.infra_warehouse.id}
+#
+#   This guarantees references are bound to the actual deployed object,
+#   not to a loosely-coupled variable that could drift.
+#
+# CONVENTION — secret scope key names:
+#   The `client_id_dbs_key` and `client_secret_dbs_key` variables control
+#   the key names used inside the shared secret scope. Targets override
+#   these to schema-qualified names so that multiple schemas can share a
+#   single scope without key collisions.
+#
+# ---------------------------------------------------------------------------
+variables:
+  catalog:
+    description: >
+      The Unity Catalog catalog for Hi Genie Orchestrator data objects.
+      USED ONLY by the schema resource — see convention note above.
+  schema:
+    description: >
+      The Unity Catalog schema name within the catalog.
+      USED ONLY by the schema resource — see convention note above.
+  secret_scope_name:
+    description: The Databricks secret scope name for Hi Genie Orchestrator credentials.
+    default: hi_genie_credentials
+  client_id_dbs_key:
+    description: The key name for the OAuth2 M2M client ID in the secret scope.
+    default: client_id
+  client_secret_dbs_key:
+    description: The key name for the OAuth2 M2M client secret in the secret scope.
+    default: client_secret
+  run_as_user:
+    description: The user or service principal that workflows should run as.
+  higher_level_service_principal:
+    description: >
+      The service principal application ID for higher-level (non-dev) deployments.
+    default: acf021b4-87c6-44ff-b3d7-45c59d63fe4d
+  lakebase_project_id:
+    description: >
+      Lakebase Autoscaling project ID. A single project is shared across
+      all targets in this workspace. Target isolation is achieved via
+      branches (production / development), not separate projects.
+    default: hi-genie-orchestrator
+  serverless_environment_version:
+    description: The serverless environment version for notebook/job tasks.
+    default: "5"
+
+  # ── App integration (used by UC Setup Job to configure scope for app) ────
+  app_name:
+    description: >
+      The Databricks App platform name. UC Setup Job uses this to look up
+      the App's managed SPN and grant it READ on the secret scope.
+  embedding_endpoint_name:
+    description: >
+      Foundation Model serving endpoint name for embedding generation.
+      Written to the secret scope by UC Setup Job so the app can read it.
+    default: databricks-gte-large-en
+  embedding_endpoint_key:
+    description: >
+      Secret scope key name under which the embedding endpoint name is stored.
+      Schema-qualified per target to avoid collisions.
+    default: embedding_endpoint_name
+
+  # Tags — applied to all deployed resources via presets
+  tags_project:
+    default: Hi Genie Orchestrator
+    description: Project tag for deployed resources.
+  tags_businessUnit:
+    default: Healthcare and Life Sciences
+    description: Business unit tag for cost and ROI allocation.
+  tags_developer:
+    default: matthew.giglia@databricks.com
+    description: Primary developer contact for Ops.
+  tags_requestedBy:
+    default: Forward Deployed Engineering
+    description: Primary business-unit stakeholder(s).
+  tags_RemoveAfter:
+    default: 2027-08-17
+    description: >
+      Required Databricks demo-environment tag for long-lived demos.
+      Cannot exceed one year after the deployment date.
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+targets:
+
+  # -- dev ------------------------------------------------------------------
+  dev:
+    mode: development
+    default: true
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: hls_fde_dev
+      schema: hi_genie
+      run_as_user: matthew.giglia@databricks.com
+      client_id_dbs_key: client_id_dev_matthew_giglia_${var.schema}
+      client_secret_dbs_key: client_secret_dev_matthew_giglia_${var.schema}
+      app_name: mcp-hi-genie-orchestrator-dev
+      embedding_endpoint_key: embedding_endpoint_dev_matthew_giglia_${var.schema}
+
+
+  # -- hls_fde (production — same workspace as dev) -------------------------
+  hls_fde:
+    mode: production
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}
+    # run_as:
+    #   user_name: ${var.run_as_user}
+    variables:
+      catalog: hls_fde
+      schema: hi_genie
+      higher_level_service_principal: acf021b4-87c6-44ff-b3d7-45c59d63fe4d
+      run_as_user: ${var.higher_level_service_principal}
+      serverless_environment_version: "5"
+      client_id_dbs_key: client_id_${var.schema}
+      client_secret_dbs_key: client_secret_${var.schema}
+      app_name: mcp-hi-genie-orchestrator
+      embedding_endpoint_key: embedding_endpoint_${var.schema}
+
+    permissions:
+      - user_name: matthew.giglia@databricks.com
+        level: CAN_MANAGE
+      - group_name: users
+        level: CAN_RUN
+      - service_principal_name: 1918013d-90e8-4e78-b2e9-7596ca2dbfae
+        level: CAN_MANAGE
+      - service_principal_name: ${var.run_as_user}
+        level: CAN_MANAGE
+
+  # -- prod (system integration testing — same workspace, isolated schema) --
+  prod:
+    mode: production
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: matthew.giglia@databricks.com
+    variables:
+      catalog: hls_fde
+      schema: hi_genie_prod
+      run_as_user: matthew.giglia@databricks.com
+      lakebase_project_id: hi-genie-orchestrator
+      client_id_dbs_key: client_id_hi_genie_prod
+      client_secret_dbs_key: client_secret_hi_genie_prod
+      app_name: mcp-hi-genie-orchestrator-prod
+      embedding_endpoint_key: embedding_endpoint_hi_genie_prod
+
+    permissions:
+      - user_name: matthew.giglia@databricks.com
+        level: CAN_MANAGE
+      - group_name: users
+        level: CAN_RUN
+      - service_principal_name: 1918013d-90e8-4e78-b2e9-7596ca2dbfae
+        level: CAN_MANAGE

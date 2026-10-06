@@ -1,0 +1,561 @@
+{
+  "project_name": "Hi Genie Orchestrator",
+  "orchestration_id": "orch-2026-08-17-hi-genie-release-1",
+  "project_root": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-hi-genie-orchestrator/genie-workstream-orchestrator/hi-genie-orchestrator",
+  "orchestration_root": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-hi-genie-orchestrator/genie-workstream-orchestrator/hi-genie-orchestrator/orchestration",
+  "state": {
+    "mode": "file",
+    "file": {
+      "state_directory": "/Workspace/Users/matthew.giglia@databricks.com/brainstorming-hi-genie-orchestrator/genie-workstream-orchestrator/hi-genie-orchestrator/orchestration/state"
+    }
+  },
+  "git": {
+    "enabled": true,
+    "branch_per_workstream": false,
+    "shared_branch": "mg-genie-hi-genie-r1-build",
+    "remote_url": null,
+    "push_clone_path": null
+  },
+  "scheduling": {
+    "supervisor_cron": "0 0 */1 * * ?",
+    "worker_cron": "0 0 */1 * * ?",
+    "dispatcher_job_id": "1706834584d946b796a1d3bcde569ed5"
+  },
+  "context": {
+    "architecture_docs": [
+      "architecture/requirements.md",
+      "architecture/decisions.md",
+      "architecture/INDEX.md",
+      "architecture/omnigent-postgresql-contract.md",
+      "architecture/omnigent-agent-recommendation.md"
+    ],
+    "project_memory": "PROJECT_MEMORY.md",
+    "open_questions": "OPEN_QUESTIONS.md",
+    "skill_root": "skill/",
+    "appkit_reference": "/Workspace/Users/matthew.giglia@databricks.com/appkit"
+  },
+  "targets": {
+    "workspace": "fevm-hls-fde",
+    "catalog": "hls_fde_dev",
+    "schema": "dev_matthew_giglia_hi_genie",
+    "bundle_target": "dev"
+  },
+  "workstreams": [
+    {
+      "key": "ws-0",
+      "name": "Infrastructure Bundle",
+      "description": "Create the hi-genie-infra Declarative Automation Bundle that provisions: Lakebase project (Autoscaling, PG17), UC schema, volumes, grants, secret scope, and SQL warehouse. Outputs resource IDs consumed by the app bundle.",
+      "type": "foundation",
+      "execution_backend": "databricks-bundle",
+      "depends_on": [],
+      "file_scope": [
+        "hi-genie-infra/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "hi-genie-infra/databricks.yml",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "hi-genie-infra/resources/schemas.yml",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "hi-genie-infra/resources/lakebase.yml",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "hi-genie-infra/resources/volumes.yml",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "hi-genie-infra/resources/secrets.yml",
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "orchestration_active",
+          "target": "orch-2026-08-17-hi-genie-release-1"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 45,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_1",
+        "reason": "Foundation — all other workstreams depend on infra"
+      }
+    },
+    {
+      "key": "ws-a",
+      "name": "App Bundle Scaffold",
+      "description": "Scaffold the mcp-hi-genie-orchestrator Databricks App bundle using AppKit with the lakebase plugin. Produces: databricks.yml, app.yaml, package.json, tsconfig, server.ts entry point, appkit.plugins.json, and directory structure (server/, client/, config/). The App inherits Lakebase connection values from the infra bundle.",
+      "type": "standard",
+      "execution_backend": "databricks-bundle",
+      "depends_on": ["ws-0"],
+      "file_scope": [
+        "mcp-hi-genie-orchestrator/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/databricks.yml",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/app.yaml",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/package.json",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/server.ts",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/appkit.plugins.json",
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "status_complete",
+          "target": "ws-0"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 45,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_2",
+        "reason": "App skeleton must exist before any server modules"
+      }
+    },
+    {
+      "key": "ws-b",
+      "name": "TypeScript Migration Module",
+      "description": "Build the startup migration system: ordered TypeScript migration definitions, basic applied-version/history tracking, execution during App startup via onPluginsReady, using AppKit Lakebase service-principal pool for DDL. Create the Release 1 dispatch and state schema DDL (workstreams, sessions, decisions, errors, events, tasks, artifacts, memory tables). Guarded, versioned, idempotent. No request-path DDL.",
+      "type": "standard",
+      "execution_backend": "databricks-bundle",
+      "depends_on": ["ws-a"],
+      "file_scope": [
+        "mcp-hi-genie-orchestrator/server/migrations/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/migrations/index.ts",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/migrations/runner.ts",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/migrations/001_dispatch_schema.ts",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/migrations/002_state_schema.ts",
+          "tier": "platform"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/migrations/003_memory_tables.ts",
+          "tier": "platform"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "status_complete",
+          "target": "ws-a"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "architecture/omnigent-postgresql-contract.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 60,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_3",
+        "reason": "Schema must exist before MCP/API can operate on it"
+      }
+    },
+    {
+      "key": "ws-c",
+      "name": "Workstream MCP Server",
+      "description": "Implement the /mcp endpoint: MCP transport (HTTP SSE or Streamable HTTP), tool registration, and the Release 1 tool catalog. Tools: get_project_context, get_workstream_context, search_decisions, get_recent_session_summaries, get_relevant_errors, get_session_context, record_decision, record_session_summary, record_error, record_workstream_event, record_task_attempt, record_task_completion, update_workstream_status, update_task_status, update_recovery_state, start_session, end_session, search_context, get_task_history, get_execution_summary, get_health, get_schema_version. All user-authorized, RLS-enforced, project/workstream scoped, bounded.",
+      "type": "standard",
+      "execution_backend": "databricks-bundle",
+      "depends_on": ["ws-b"],
+      "file_scope": [
+        "mcp-hi-genie-orchestrator/server/mcp/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/mcp/index.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/mcp/transport.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/mcp/tools/context.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/mcp/tools/records.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/mcp/tools/state.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/mcp/tools/search.ts",
+          "tier": "downstream"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "status_complete",
+          "target": "ws-b"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "skill/surfaces/mcp.md",
+        "skill/roles/worker.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 60,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_3",
+        "reason": "Core MCP surface — workers interact through this"
+      }
+    },
+    {
+      "key": "ws-d",
+      "name": "Supervisor API and Python SDK",
+      "description": "Implement the versioned /api/v1 Supervisor routes: plan ingestion, plan validation, plan publication (immutable snapshots with content hashes), workstream materialization, dispatch/retry/pause/unpause, review task creation, remediation envelope delivery, and completion approval. Also produce a thin typed Python SDK package (hi-genie-sdk/) that wraps these endpoints with typed request/response models, authentication helpers, and a WS-INIT client.",
+      "type": "standard",
+      "execution_backend": "databricks-bundle",
+      "depends_on": ["ws-b"],
+      "file_scope": [
+        "mcp-hi-genie-orchestrator/server/api/",
+        "hi-genie-sdk/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/api/index.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/api/routes/plans.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/api/routes/workstreams.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/api/routes/reviews.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "hi-genie-sdk/pyproject.toml",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "hi-genie-sdk/src/hi_genie/__init__.py",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "hi-genie-sdk/src/hi_genie/client.py",
+          "tier": "downstream"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "status_complete",
+          "target": "ws-b"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "skill/surfaces/api.md",
+        "skill/roles/supervisor.md",
+        "skill/roles/reviewer.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 60,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_3",
+        "reason": "Supervisor control plane — drives dispatch and review"
+      }
+    },
+    {
+      "key": "ws-e",
+      "name": "Event Dispatch and WS-INIT",
+      "description": "Implement: (1) Lakebase LISTEN/NOTIFY wakeup handling — completion_signals table, pg_notify trigger, notification consumer in the App process. (2) Scheduled tick recovery — periodic evaluation as fallback when notifications are missed. (3) WS-INIT stateless priority-tree evaluation model (HANDLE_STUCK > RESUME_RETRY > CREATE_NEXT > SURFACE_BLOCKER > UNPAUSE_READY > GIT_SYNC > STATUS_REPORT > NO_OP). (4) Review dispatch — detect READY_FOR_REVIEW, create review tasks with idempotent review_task_id.",
+      "type": "standard",
+      "execution_backend": "databricks-bundle",
+      "depends_on": ["ws-b", "ws-d"],
+      "file_scope": [
+        "mcp-hi-genie-orchestrator/server/dispatch/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/dispatch/index.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/dispatch/listener.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/dispatch/tick-evaluator.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/dispatch/priority-tree.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/dispatch/review-dispatcher.ts",
+          "tier": "downstream"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "status_complete",
+          "target": "ws-b"
+        },
+        {
+          "type": "status_complete",
+          "target": "ws-d"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "skill/surfaces/lakebase.md",
+        "skill/roles/supervisor.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 60,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_4",
+        "reason": "Requires both schema (ws-b) and API routes (ws-d) to integrate with"
+      }
+    },
+    {
+      "key": "ws-f",
+      "name": "Semantic Memory Layer",
+      "description": "Implement the three-layer Lakebase memory model: (1) Short-term session memory — session/thread-scoped working context with configurable TTL (1-7 days). (2) Long-term episodic memory — redacted session summaries, execution outcomes, errors. (3) Long-term semantic memory — compacted, deduplicated facts and patterns from episodic records. Use lakebase_vector extension and lakebase_ann index for pgvector-compatible semantic search. Background embedding generation from Databricks-hosted model endpoint. RLS-protected, project-scoped, in-project only (cross-project deferred to 1.1).",
+      "type": "standard",
+      "execution_backend": "databricks-bundle",
+      "depends_on": ["ws-b"],
+      "file_scope": [
+        "mcp-hi-genie-orchestrator/server/memory/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/memory/index.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/memory/short-term.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/memory/episodic.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/memory/semantic.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/memory/embeddings.ts",
+          "tier": "downstream"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "status_complete",
+          "target": "ws-b"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 60,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_3",
+        "reason": "Memory layer is independent of API/MCP but needs schema"
+      }
+    },
+    {
+      "key": "ws-g",
+      "name": "Observability — OpenTelemetry and MLflow 3",
+      "description": "Implement dual observability: (1) OpenTelemetry — enable Databricks App telemetry, instrument MCP request handling and downstream DB ops, propagate trace/request correlation. (2) MLflow 3 — store traces in Unity Catalog, one root span per MCP request, TOOL span per executed tool, child spans for Lakebase/SQL. Dual export when OTLP configured. Trace retention configurable via DAB variable mlflow_trace_retention_days (default 90). Sanitize: exclude tokens, secrets, raw auth, sensitive SQL literals.",
+      "type": "standard",
+      "execution_backend": "databricks-bundle",
+      "depends_on": ["ws-a"],
+      "file_scope": [
+        "mcp-hi-genie-orchestrator/server/telemetry/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/telemetry/index.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/telemetry/otel-setup.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/telemetry/mlflow-tracer.ts",
+          "tier": "downstream"
+        },
+        {
+          "type": "file",
+          "name": "mcp-hi-genie-orchestrator/server/telemetry/sanitizer.ts",
+          "tier": "downstream"
+        }
+      ],
+      "gate_conditions": [
+        {
+          "type": "status_complete",
+          "target": "ws-a"
+        }
+      ],
+      "context_files": [
+        "architecture/requirements.md",
+        "architecture/decisions.md",
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 45,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_3",
+        "reason": "Needs app scaffold only — other modules import telemetry"
+      }
+    },
+    {
+      "key": "ws-final",
+      "name": "Integration Validation and Summary",
+      "description": "Gate on ALL workstreams. Validate: (1) Both bundles pass databricks bundle validate. (2) App server.ts imports and wires all modules (mcp, api, dispatch, memory, telemetry). (3) Migration module runs cleanly against a disposable Lakebase branch. (4) MCP tool catalog is complete per Decision 13-17. (5) SDK package installs and type-checks. Produce orchestration summary with artifact paths, durations, and merge plan.",
+      "type": "final",
+      "execution_backend": "custom",
+      "depends_on": ["ws-0", "ws-a", "ws-b", "ws-c", "ws-d", "ws-e", "ws-f", "ws-g"],
+      "file_scope": [
+        "orchestration/state/"
+      ],
+      "output_artifacts": [
+        {
+          "type": "file",
+          "name": "orchestration/state/orchestration-summary.md",
+          "tier": "app"
+        }
+      ],
+      "gate_conditions": [
+        {"type": "status_complete", "target": "ws-0"},
+        {"type": "status_complete", "target": "ws-a"},
+        {"type": "status_complete", "target": "ws-b"},
+        {"type": "status_complete", "target": "ws-c"},
+        {"type": "status_complete", "target": "ws-d"},
+        {"type": "status_complete", "target": "ws-e"},
+        {"type": "status_complete", "target": "ws-f"},
+        {"type": "status_complete", "target": "ws-g"}
+      ],
+      "context_files": [
+        "PROJECT_MEMORY.md"
+      ],
+      "estimated_duration_min": 30,
+      "max_retries": 5,
+      "execution_tier": {
+        "tier": "tier_5",
+        "reason": "Terminal node — depends on everything"
+      }
+    }
+  ],
+  "dag_metadata": {
+    "total_workstreams": 9,
+    "max_parallelism": 3,
+    "sequential_total_min": 465,
+    "parallel_duration_min": 300,
+    "topological_levels": {
+      "0": ["ws-0"],
+      "1": ["ws-a"],
+      "2": ["ws-b", "ws-g"],
+      "3": ["ws-c", "ws-d", "ws-f"],
+      "4": ["ws-e"],
+      "5": ["ws-final"]
+    },
+    "critical_path": ["ws-0", "ws-a", "ws-b", "ws-d", "ws-e", "ws-final"],
+    "critical_path_min": 300
+  }
+}

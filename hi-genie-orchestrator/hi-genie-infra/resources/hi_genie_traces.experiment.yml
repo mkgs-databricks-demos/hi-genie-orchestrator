@@ -1,0 +1,24 @@
+# MLflow Experiment for Hi Genie Orchestrator trace storage.
+#
+# Provides a UC-backed MLflow experiment for dual tracing (OTel + MLflow 3).
+# The app references this experiment via its resource declaration and
+# the platform injects the experiment ID as MLFLOW_EXPERIMENT_ID.
+#
+# Resource key: ${resources.experiments.hi_genie_traces.id}
+#
+# NOTE: App SPN CAN_EDIT grant is applied dynamically by the UC Setup Job
+# (same pattern as schema grants).
+
+resources:
+  experiments:
+    hi_genie_traces:
+      name: /Workspace/.experiments/${resources.schemas.hi_genie_schema.catalog_name}/${resources.schemas.hi_genie_schema.name}/hi_genie_orchestrator_traces
+      tags:
+        - key: mlflow.note.content
+          value: >
+            MLflow 3 traces for the Hi Genie Orchestrator app.
+            Stores MCP tool invocations, API request spans, and
+            Lakebase query spans. Retention governed by
+            mlflow_trace_retention_days variable.
+        - key: project
+          value: hi-genie-orchestrator

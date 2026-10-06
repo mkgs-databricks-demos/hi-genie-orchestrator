@@ -1,0 +1,27 @@
+command: ['npm', 'run', 'start']
+env:
+  # ── Plugin resources (auto-injected by platform at runtime) ───────────────
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+
+  # ── App SPN credentials (injected via platform valueFrom) ────────────────
+  # Used for background operations (LISTEN/NOTIFY, scheduled ticks).
+  # Platform reads the secret value and injects it as an env var.
+  - name: HI_GENIE_APP_CLIENT_ID
+    valueFrom: app-client-id
+  - name: HI_GENIE_APP_CLIENT_SECRET
+    valueFrom: app-client-secret
+
+  # ── Embedding endpoint (injected via secret scope by infra UC Setup Job) ─
+  - name: EMBEDDING_ENDPOINT_NAME
+    valueFrom: embedding-endpoint
+
+  # ── MLflow experiment (platform-injected from app resource) ───────────────
+  - name: MLFLOW_EXPERIMENT_ID
+    valueFrom: experiment
+
+  # ── Application configuration (static values from bundle) ───────────────
+  - name: HI_GENIE_SECRET_SCOPE
+    value: hi_genie_credentials
+  - name: NODE_ENV
+    value: production

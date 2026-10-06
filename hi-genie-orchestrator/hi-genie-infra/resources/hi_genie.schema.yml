@@ -1,0 +1,88 @@
+# Unity Catalog schema for Hi Genie Orchestrator data.
+#
+# This is the ONLY resource file that should reference ${var.catalog} and
+# ${var.schema} directly. All other resources in this bundle (and in the
+# companion mcp-hi-genie-orchestrator app bundle) must reference the schema
+# through deployed-resource substitutions:
+#
+#   Catalog name:  ${resources.schemas.hi_genie_schema.catalog_name}
+#   Schema name:   ${resources.schemas.hi_genie_schema.name}
+#   Schema ID:     ${resources.schemas.hi_genie_schema.id}
+#   Full name:     ${resources.schemas.hi_genie_schema.catalog_name}.${resources.schemas.hi_genie_schema.name}
+#
+# This ensures the schema identity is always derived from the actual
+# deployed object, not from a loosely-coupled variable.
+#
+# NOTE: App SPN grants (USE_SCHEMA, SELECT, MODIFY) are applied
+# dynamically by the DDL/setup notebook, not declared here.
+# Only admin, deploy SP, and user group grants are declared below.
+
+resources:
+  schemas:
+    hi_genie_schema:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: >
+        Unity Catalog schema for the Hi Genie Orchestrator.
+        Stores analytical tables for orchestration state, workstream events,
+        session summaries, MLflow traces, and OTel telemetry exports.
+        Lakebase Lakehouse Sync tables also land here.
+
+      # Prevent accidental deletion — this schema holds all orchestration data
+      lifecycle:
+        prevent_destroy: true
+
+      # Base grants — extended per-target below
+      grants:
+        - principal: account users
+          privileges:
+            - USE_SCHEMA
+
+# ---------------------------------------------------------------------------
+# Target-specific grants
+# ---------------------------------------------------------------------------
+targets:
+
+  dev:
+    resources:
+      schemas:
+        hi_genie_schema:
+          grants:
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+            - principal: ${var.run_as_user}
+              privileges:
+                - ALL_PRIVILEGES
+
+  hls_fde:
+    resources:
+      schemas:
+        hi_genie_schema:
+          grants:
+            # Deploy service principal — full control
+            - principal: ${var.higher_level_service_principal}
+              privileges:
+                - ALL_PRIVILEGES
+            # Admin user
+            - principal: matthew.giglia@databricks.com
+              privileges:
+                - ALL_PRIVILEGES
+            # Read access for all workspace users
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
+  prod:
+    resources:
+      schemas:
+        hi_genie_schema:
+          grants:
+            - principal: matthew.giglia@databricks.com
+              privileges:
+                - ALL_PRIVILEGES
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+                - SELECT

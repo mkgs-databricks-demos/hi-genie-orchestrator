@@ -1,0 +1,53 @@
+# Lakebase Branches — Hi Genie Orchestrator
+#
+# Two long-lived branches on a single shared project:
+#   - production: protected, used by hls_fde/prod targets (app bundle)
+#   - development: expendable, used by dev target (app bundle)
+#
+# Both branches are always deployed regardless of which target runs.
+# The app bundle determines which branch to connect to per target.
+#
+# Development is branched from production (copy-on-write), so it shares
+# storage and only pays for divergent writes. Reset it by deleting and
+# re-branching from production if migrations go wrong.
+
+resources:
+  postgres_branches:
+
+    # -------------------------------------------------------------------------
+    # production — auto-created with the project, adopted via replace_existing
+    #
+    # Protected and permanent. The hls_fde/prod app connects here.
+    # -------------------------------------------------------------------------
+    production_branch:
+      branch_id: production
+      parent: ${resources.postgres_projects.hi_genie_lakebase.name}
+
+      # Adopt the auto-created branch into bundle state
+      replace_existing: true
+
+      # Production branch never expires
+      no_expiry: true
+
+      # Protect from accidental deletion or reset
+      is_protected: true
+
+      lifecycle:
+        prevent_destroy: true
+
+    # -------------------------------------------------------------------------
+    # development — long-lived dev/test branch, forked from production
+    #
+    # NOT protected — allows reset/rebranch when migrations break.
+    # The dev app connects here.
+    # -------------------------------------------------------------------------
+    development_branch:
+      branch_id: development
+      parent: ${resources.postgres_projects.hi_genie_lakebase.name}
+
+      # Fork from production (copy-on-write)
+      source_branch: ${resources.postgres_branches.production_branch.name}
+
+      # Long-lived but NOT protected (allows reset/delete for fresh state)
+      no_expiry: true
+      is_protected: false

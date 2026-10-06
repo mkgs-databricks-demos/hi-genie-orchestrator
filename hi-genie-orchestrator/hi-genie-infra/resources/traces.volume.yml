@@ -1,0 +1,22 @@
+# Managed volume for storing MLflow trace exports and orchestration artifacts.
+#
+# Files are stored as: /Volumes/{catalog}/{schema}/traces/{export_date}/{trace_id}.json
+#
+# Used by the Hi Genie Orchestrator for:
+#   - MLflow 3 trace exports (redacted payloads for long-term retention)
+#   - Session summary artifacts
+#   - Migration and schema change records
+#
+# Referenced by the app bundle and cleanup jobs.
+
+resources:
+  volumes:
+    traces_volume:
+      catalog_name: ${resources.schemas.hi_genie_schema.catalog_name}
+      schema_name: ${resources.schemas.hi_genie_schema.name}
+      name: traces
+      volume_type: MANAGED
+      comment: >
+        Managed volume for storing MLflow trace exports, session artifacts,
+        and orchestration records for the Hi Genie Orchestrator. Organized
+        by export date and trace/session ID.

@@ -1,0 +1,65 @@
+# Lakebase Autoscaling — Hi Genie Orchestrator OLTP Database (Project)
+#
+# ONE project shared across all targets in this workspace. Target isolation
+# is via branches (production / development), not separate projects.
+# See: hi_genie_branches.lakebase.yml, hi_genie_endpoints.lakebase.yml
+#
+# PostgreSQL-compatible database for the Hi Genie Orchestrator App.
+# Provides low-latency OLTP storage for orchestration state, workstream
+# context, session memory, decisions, errors, and dispatch coordination.
+#
+# Resource hierarchy (across files):
+#   hi_genie.lakebase.yml          → postgres_project
+#   hi_genie_branches.lakebase.yml → postgres_branches (production, development)
+#   hi_genie_endpoints.lakebase.yml→ postgres_endpoints (one per branch)
+#
+# Connection model:
+#   AppKit's Lakebase plugin connects via direct Postgres wire protocol
+#   (port 5432) using OAuth token rotation — NOT the Data API. The platform
+#   injects PGHOST, PGPORT, PGDATABASE, PGUSER env vars into the app
+#   automatically when a database resource is configured.
+#
+# Schemas (created by app startup migrations, not pre-provisioned):
+#   - `dispatch` — owned by Supervisor API (scheduling, dispatch, review)
+#   - `state` — owned by Workstream MCP (context, memory, records)
+#
+# NOTE: Deploying this resource starts the Lakebase instance and incurs
+#       cost immediately. Endpoints use autoscaling with scale-to-zero.
+#
+# -- Post-deploy manual steps -----------------------------------------------
+#
+# These integrations have no DAB resource type or API — they require
+# manual configuration in the Lakebase App UI after the first deploy.
+#
+#   1. Enable Lakebase Search (optional — for pgvector semantic memory)
+#      Lakebase App → project → Search → "Enable Search"
+#      WARNING: irreversible, may restart computes and drop connections.
+#
+#   2. Register in Unity Catalog (optional)
+#      Catalog Explorer → Create catalog → type "Lakebase Autoscaling"
+#      → select project / production branch / databricks_postgres database.
+#      Enables SQL warehouse queries, cross-source joins, and governance.
+#
+# ---------------------------------------------------------------------------
+#
+# Requires Databricks CLI >= 0.287.0
+
+resources:
+  postgres_projects:
+    hi_genie_lakebase:
+      project_id: ${var.lakebase_project_id}
+      display_name: Hi Genie Orchestrator
+      pg_version: 17
+
+      # Retain 7 days of history for point-in-time recovery
+      history_retention_duration: "604800s"
+
+      # Applied at project creation time to auto-provisioned endpoints.
+      # Individual endpoint resources take over management after first deploy.
+      default_endpoint_settings:
+        autoscaling_limit_min_cu: 0.5
+        autoscaling_limit_max_cu: 4
+
+      # Prevent accidental deletion — this project holds all operational data
+      lifecycle:
+        prevent_destroy: true
