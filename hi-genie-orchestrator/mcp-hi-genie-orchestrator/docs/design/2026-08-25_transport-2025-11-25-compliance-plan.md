@@ -1,7 +1,7 @@
 # MCP Transport 2025-11-25 Streamable HTTP — Compliance Remediation Plan
 
 **Date:** 2026-08-25  
-**Status:** Accepted — issue inventory, tests and Decisions 1-3 current; implementation sketches superseded by Decision 4 (2026-10-30, official MCP SDK) — see `docs/design/2026-10-30_mcp-transport-sdk-adoption-plan.md`  
+**Status:** Accepted — issue inventory and Decision 2 current; implementation sketches superseded by Decision 4 (official MCP SDK) and Decisions 1 and 3 by Decision 5 (target 2026-07-28), both 2026-10-30 — see `docs/design/2026-10-30_mcp-transport-sdk-adoption-plan.md`  
 **Scope:** `server/mcp/transport.ts`, `server/mcp/index.ts`  
 **Spec reference:** [MCP 2025-11-25 Streamable HTTP](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/)  
 **Relates to:** `docs/design/2026-08-20_mcp-protocol-versioning-strategy.md`
@@ -721,6 +721,14 @@ if (origin && !isExpectedOrigin(origin)) {
 
 **Source:** owner decision, 2026-10-30.
 
+### 5. Spec target: 2026-07-28, dual-era (Accepted 2026-10-30)
+
+**Decision:** Target the latest MCP spec, **2026-07-28**, with SDK v2 (`@modelcontextprotocol/server` `createMcpHandler(factory, { legacy: 'stateless' })`), which also answers 2025-era requests statelessly. This refines Decision 4: the package is the v2 `@modelcontextprotocol/server`, not v1 `@modelcontextprotocol/sdk` (v1 stops at 2025-11-25).
+
+**Effect:** all paths become stateless; issues #1-#4 and #12 (session lifecycle) disappear rather than being fixed. Decision 1 (GET SSE facade) is replaced by `subscriptions/listen` + the handler's `notify`; Decision 3 is moot because 2026-07-28 removes `Last-Event-ID` resumability. Decision 2 (Origin log-only) is unchanged.
+
+**Source:** owner decision (D-T-1), 2026-10-30.
+
 ### Summary
 
 | Decision | Choice | Effort | Revisit Gate |
@@ -729,6 +737,7 @@ if (origin && !isExpectedOrigin(origin)) {
 | Origin validation | Log-only | 20 min | Logs show unexpected traffic |
 | `Last-Event-ID` | Defer to R2 | 0 now | First active SSE consumer deployed |
 | Implementation approach | Official MCP SDK transport (Decision 4, 2026-10-30) | 8-12 h (estimate) | SDK ships a newer spec version |
+| Spec target | 2026-07-28 + stateless 2025 fallback, SDK v2 (Decision 5, 2026-10-30) | included above | A Databricks client speaks 2026-07-28 (enable modern-only tests live) |
 
 ---
 

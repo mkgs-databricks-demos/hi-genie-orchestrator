@@ -1,7 +1,7 @@
 # MCP Protocol Versioning Strategy — A/B Deployable Spec Variants
 
 **Date:** 2026-08-20  
-**Status:** Design exploration  
+**Status:** Design exploration — A/B deployable variants superseded 2026-10-30 by D-T-1 (one dual-era endpoint via MCP SDK v2 `createMcpHandler`; see `2026-10-30_mcp-transport-sdk-adoption-plan.md` section 2a). MCP Apps section continued in `2026-10-30_mcp-apps-adoption-research.md`  
 **Scope:** R1.1 / R2 candidate  
 **Relates to:** MCP transport (`server/mcp/transport.ts`), DABs config, Lakebase branching
 
