@@ -1,7 +1,7 @@
 # MCP Transport 2025-11-25 — Execution Plan and SDK Adoption Proposal
 
 **Date:** 2026-10-30  
-**Status:** Proposal — awaiting owner decision (Option A vs Option B)  
+**Status:** Accepted — Option B selected by the owner on 2026-10-30 (D-T-2); D-T-1 and D-T-3 still proposed  
 **Scope:** `server/mcp/transport.ts`, `server/mcp/index.ts`, new `server/mcp/transport.test.ts`, `tests/mcp.spec.ts`  
 **Builds on:** `docs/design/2026-08-25_transport-2025-11-25-compliance-plan.md` (Accepted; issue numbers below refer to its Issue Inventory)  
 **Related:** `docs/design/2026-08-20_mcp-protocol-versioning-strategy.md`, `fixtures/sessions/2026-08-24_identity-investigation-and-caller-identity.md`
@@ -54,9 +54,20 @@ Replace the HTTP/session layer with `StreamableHTTPServerTransport` from `@model
 * Cons: one larger change; new runtime dependency; must confirm the SDK's stateless mode against UC MCP Service.
 * Effort (estimate; driver: adapter for 39 tools is mechanical because handlers keep their signature): adapter 3-4 h, identity/OBO wiring 1-2 h, tests 3-4 h, deploy and live validation 1-2 h — **8-12 h**.
 
-### Recommendation
+### Decision: Option B (accepted 2026-10-30)
 
-Option B. Nothing in Option A has started, every open gap is in the hand-rolled layer, and the SDK is compatible with the AppKit 0.89 dependency set. Selecting Option B supersedes the implementation sketches (not the issue list or the tests) of the 2026-08-25 plan; record the decision in its Decisions section and in `PROJECT_MEMORY.md`.
+The owner selected Option B. Reasons: nothing in Option A had started, every open gap is in the hand-rolled layer, and the SDK is compatible with the AppKit 0.89 dependency set.
+
+What this changes in the 2026-08-25 plan:
+
+* **Superseded:** its implementation sketches (sections 1.1-3.4: hand-written session store, `getOrCreateSession` rework, `handleToolCallStreaming`, manual 405/415 handling).
+* **Still authoritative:** the issue inventory (#1-#12), the test matrix and the integration flow.
+* **Carried over unchanged:** its accepted Decisions 1-3:
+  * Decision 1 (GET SSE facade, dormant): the `sendSessionNotification()` facade in `index.ts` stays, now calling the SDK `Server.notification()` of the stateful `/mcp` server.
+  * Decision 2 (Origin log-only): do **not** enable the SDK's `enableDnsRebindingProtection` / `allowedOrigins`, which reject; keep a log-only Origin check in our middleware in front of the SDK transport.
+  * Decision 3 (`Last-Event-ID` deferred to R2): do not configure the SDK `eventStore` yet; the R2 gate (first active SSE producer must add resumability) now means configuring `eventStore`.
+
+Recorded in the 2026-08-25 plan (Decision 4) and in `PROJECT_MEMORY.md` (Architecture Decision 15).
 
 ## 3. Session mode per path (applies to both options)
 
@@ -74,14 +85,14 @@ The spec allows a server not to assign a session ID; stateless persona paths are
 1. Merge `mg-genie-appkit-0.89-upgrade` (AppKit 0.89.0, regenerated `package-lock.json`).
 2. Restore dev: Lakebase branches `production` / `development` are `ARCHIVED`, `production` is unprotected, app `mcp-hi-genie-orchestrator-dev` is `UNAVAILABLE` (deployments of 2026-10-06 failed) and still points at the deprecated `brainstorming-hi-genie-orchestrator` source path. Redeploy from this repo; post-deploy job `468754756167374` green.
 3. Capture one real UC MCP Service request per persona (method sequence, headers incl. `Accept`, `Mcp-Session-Id`, `Origin`, `MCP-Protocol-Version`) from OTel logs. Confirms or refutes the stateless assumption in section 3.
-4. Owner decision: Option A or B.
+4. ~~Owner decision: Option A or B.~~ Done 2026-10-30: Option B (D-T-2).
 
 ### Phase 1 — Protocol correctness (branch `mg-genie-mcp-transport-p1`)
 
 Issues #1, #2, #3, #4, #12, plus 2026-08-27 open findings #3 (`isSingleToolCall` definition) and #4 (handler context object).
 
-* Option A: items 1.1-1.5 of the accepted plan, with 1.2 limited to the stateful `/mcp` path.
-* Option B: add `@modelcontextprotocol/sdk` (exact version), build `createSdkTransport({ registry, basePath, mode })` in `server/mcp/transport.ts`, mount in `index.ts`, delete the hand-rolled session store.
+* ~~Option A: items 1.1-1.5 of the accepted plan, with 1.2 limited to the stateful `/mcp` path.~~ Not selected.
+* Option B (selected): add `@modelcontextprotocol/sdk` (exact version), build `createSdkTransport({ registry, basePath, mode })` in `server/mcp/transport.ts`, mount in `index.ts`, delete the hand-rolled session store.
 
 Exit: `transport.test.ts` P1 rows pass; handshake against stateful `/mcp`; a stateless `tools/list` on each persona path returns the expected count.
 
@@ -91,7 +102,7 @@ Issues #5, #6, #7. Option B: SSE responses and `notifications/progress` come fro
 
 ### Phase 3 — Hardening (branch `mg-genie-mcp-transport-p3`, can run in parallel with Phase 2)
 
-Issues #8, #9, #10, #11. Option B: enable `enableDnsRebindingProtection` with `allowedOrigins` / `allowedHosts` set to the workspace and app hosts (explicit values from bundle variables, since the SDK matches exact strings), and confirm a missing Origin (server-to-server) is accepted; #8 (415) and #10 (405 with `Allow: GET, POST, DELETE`) are built into the SDK transport (verified in `webStandardStreamableHttp.js` of 1.32.2); #11 is removed with the old code.
+Issues #8, #9, #10, #11. #8 (415) and #10 (405 with `Allow: GET, POST, DELETE`) are built into the SDK transport (verified in `webStandardStreamableHttp.js` of 1.32.2). #9: log-only Origin middleware per 2026-08-25 Decision 2 (SDK rejection left off; if enforcement is ever adopted, note the SDK matches `allowedOrigins` as exact strings and accepts a missing Origin). #11 is removed with the old code.
 
 ## 5. Verification gates (every phase)
 
@@ -123,5 +134,5 @@ Issues #8, #9, #10, #11. Option B: enable `enableDnsRebindingProtection` with `a
 | ID | Decision | Status |
 | --- | --- | --- |
 | D-T-1 | Target spec stays `2025-11-25` (latest in stable SDK 1.32.2) | Proposed |
-| D-T-2 | Option A vs Option B | Open — owner |
+| D-T-2 | Option B: official SDK `StreamableHTTPServerTransport` + low-level `Server`, existing tool registry kept | **Accepted 2026-10-30 (owner)** |
 | D-T-3 | Persona paths stateless, `/mcp` stateful | Proposed — confirm with Phase 0 capture |

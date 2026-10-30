@@ -1,7 +1,7 @@
 # MCP Transport 2025-11-25 Streamable HTTP — Compliance Remediation Plan
 
 **Date:** 2026-08-25  
-**Status:** Accepted — decisions recorded, ready for implementation  
+**Status:** Accepted — issue inventory, tests and Decisions 1-3 current; implementation sketches superseded by Decision 4 (2026-10-30, official MCP SDK) — see `docs/design/2026-10-30_mcp-transport-sdk-adoption-plan.md`  
 **Scope:** `server/mcp/transport.ts`, `server/mcp/index.ts`  
 **Spec reference:** [MCP 2025-11-25 Streamable HTTP](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/)  
 **Relates to:** `docs/design/2026-08-20_mcp-protocol-versioning-strategy.md`
@@ -708,6 +708,19 @@ if (origin && !isExpectedOrigin(origin)) {
 - **Gate for R2:** First PR that adds an active SSE producer MUST include
   `Last-Event-ID` support in the same changeset.
 
+### 4. Implementation approach: official MCP SDK (Accepted 2026-10-30)
+
+**Decision:** Implement this plan by replacing the hand-rolled HTTP/session layer in `transport.ts` with `StreamableHTTPServerTransport` and the low-level `Server` from `@modelcontextprotocol/sdk` (D-T-2 in `2026-10-30_mcp-transport-sdk-adoption-plan.md`). The existing `McpToolRegistry`, `_caller_identity` handling and persona registries stay.
+
+**Effect on this document:** sections 1.1-3.4 describe the patch approach and are superseded as implementation guidance. The issue inventory (#1-#12), the testing strategy and Decisions 1-3 remain in force:
+* Decision 1: facade kept; it calls the SDK `Server` of the stateful `/mcp` path.
+* Decision 2: SDK Origin rejection stays off; log-only middleware in front of the SDK transport.
+* Decision 3: SDK `eventStore` not configured until the first active SSE producer.
+
+**Rationale:** 0 of 12 issues implemented as of 2026-10-29; the SDK (1.32.2, `LATEST_PROTOCOL_VERSION = '2025-11-25'`) covers most issues plus `notifications/cancelled`; its zod peer range matches AppKit 0.89 (zod 4.3.6).
+
+**Source:** owner decision, 2026-10-30.
+
 ### Summary
 
 | Decision | Choice | Effort | Revisit Gate |
@@ -715,6 +728,7 @@ if (origin && !isExpectedOrigin(origin)) {
 | GET SSE notification | Two-layer: bound handle (1.3) + facade (2.3), dormant | 45 min | — |
 | Origin validation | Log-only | 20 min | Logs show unexpected traffic |
 | `Last-Event-ID` | Defer to R2 | 0 now | First active SSE consumer deployed |
+| Implementation approach | Official MCP SDK transport (Decision 4, 2026-10-30) | 8-12 h (estimate) | SDK ships a newer spec version |
 
 ---
 
