@@ -1,0 +1,4 @@
+# Databricks workspace-generated serverless environment file for this folder
+# (environment_version only; not a Python package). Root only: the real package
+# is hi-genie-orchestrator/hi-genie-sdk/pyproject.toml and stays tracked.
+/pyproject.toml
