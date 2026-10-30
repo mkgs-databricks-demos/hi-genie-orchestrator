@@ -20,6 +20,7 @@ This directory captures ideas, investigations, and design considerations that ar
 
 | Date | Document | Status | Summary |
 | --- | --- | --- | --- |
+| 2026-10-30 | [mcp-transport-sdk-adoption-plan](./2026-10-30_mcp-transport-sdk-adoption-plan.md) | Proposal | Execution plan for the 2025-11-25 transport work: audit (0 of 12 issues implemented), Option A (patch) vs Option B (official SDK `StreamableHTTPServerTransport` + low-level `Server`, recommended), stateless persona paths vs stateful `/mcp`, Phase 0 prerequisites, verification gates |
 | 2026-08-26 | [mlflow-trace-lifecycle-and-obo-remediation](./2026-08-26_mlflow-trace-lifecycle-and-obo-remediation.md) | Accepted | Fix MLflow 3 traces: API v3 two-phase lifecycle, request/response previews, true OBO via x-forwarded-access-token, MCP-aligned trace hierarchy, structured naming |
 | 2026-08-25 | [transport-2025-11-25-compliance-plan](./2026-08-25_transport-2025-11-25-compliance-plan.md) | Accepted | 10-issue remediation plan for MCP Streamable HTTP spec compliance; 3 phases (protocol correctness, streaming/progress, hardening); scoped to current 2025-11-25 transport |
 | 2026-08-24 | [004-four-persona-mcp-split](./004-four-persona-mcp-split.md) | Accepted | 4-persona MCP services (architect:13, reviewer:14, worker:17, dispatcher:16) under UC 20-tool limit; validated with OTel + live MCP tools/list |
