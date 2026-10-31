@@ -45,7 +45,7 @@ resources:
       tasks:
         - task_key: ensure_experiment_directories
           notebook_task:
-            notebook_path: ../src/ensure_experiment_directories.py
+            notebook_path: ../src/ensure_experiment_directories.ipynb
             base_parameters:
               catalog: "{{job.parameters.catalog}}"
               schema: "{{job.parameters.schema}}"
@@ -55,7 +55,7 @@ resources:
           depends_on:
             - task_key: ensure_experiment_directories
           notebook_task:
-            notebook_path: ../src/lakebase_platform_setup.py
+            notebook_path: ../src/lakebase_platform_setup.ipynb
             base_parameters:
               lakebase_project_id: "{{job.parameters.lakebase_project_id}}"
               branches: "{{job.parameters.branches}}"
@@ -68,7 +68,7 @@ resources:
           depends_on:
             - task_key: install_lakebase_extensions
           notebook_task:
-            notebook_path: ../src/configure_app_secrets.py
+            notebook_path: ../src/configure_app_secrets.ipynb
             base_parameters:
               secret_scope_name: "{{job.parameters.secret_scope_name}}"
               app_name: "{{job.parameters.app_name}}"

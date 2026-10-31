@@ -57,7 +57,7 @@ resources:
         # ---- Always runs: deployment validation ----
         - task_key: validate_deployment
           notebook_task:
-            notebook_path: ../src/tests/post_deploy_validation.py
+            notebook_path: ../src/tests/post_deploy_validation.ipynb
             base_parameters:
               app_name: ${var.app_name}
               secret_scope_name: ${var.secret_scope_name}
@@ -95,7 +95,7 @@ resources:
               outcome: "true"
           run_if: AT_LEAST_ONE_SUCCESS
           notebook_task:
-            notebook_path: ../src/deploy/publish_skill.py
+            notebook_path: ../src/deploy/publish_skill.ipynb
             base_parameters:
               app_name: ${var.app_name}
               secret_scope_name: ${var.secret_scope_name}
@@ -120,7 +120,7 @@ resources:
               outcome: "true"
           environment_key: default
           notebook_task:
-            notebook_path: ../src/deploy/reset_connection.py
+            notebook_path: ../src/deploy/reset_connection.ipynb
             base_parameters:
               connection_name: ${var.connection_name}
               mcp_connection_name: ${var.mcp_connection_name}
@@ -134,7 +134,7 @@ resources:
           run_if: NONE_FAILED
           environment_key: default
           notebook_task:
-            notebook_path: ../src/deploy/create_app_connection.sql
+            notebook_path: ../src/deploy/create_app_connection.ipynb
             base_parameters:
               catalog: ${var.catalog}
               schema: ${var.schema}
@@ -153,7 +153,7 @@ resources:
             - task_key: create_app_connection
           environment_key: default
           notebook_task:
-            notebook_path: ../src/deploy/register_mcp_service.py
+            notebook_path: ../src/deploy/register_mcp_service.ipynb
             base_parameters:
               catalog: ${var.catalog}
               schema: ${var.schema}
@@ -173,7 +173,7 @@ resources:
             - task_key: register_mcp_service
           environment_key: default
           notebook_task:
-            notebook_path: ../src/deploy/register_mcp_policy.py
+            notebook_path: ../src/deploy/register_mcp_policy.ipynb
             base_parameters:
               catalog: ${var.catalog}
               schema: ${var.schema}
@@ -189,7 +189,7 @@ resources:
             - task_key: create_app_connection
           environment_key: default
           notebook_task:
-            notebook_path: ../src/deploy/discover_uc_functions.py
+            notebook_path: ../src/deploy/discover_uc_functions.ipynb
 
         # ---- Register each UC function (forEach over discovered files) ----
         - task_key: register_uc_functions
@@ -201,7 +201,7 @@ resources:
               task_key: register_single_function
               environment_key: default
               notebook_task:
-                notebook_path: ../src/deploy/register_uc_function.py
+                notebook_path: ../src/deploy/register_uc_function.ipynb
                 base_parameters:
                   catalog: ${var.catalog}
                   schema: ${var.schema}
