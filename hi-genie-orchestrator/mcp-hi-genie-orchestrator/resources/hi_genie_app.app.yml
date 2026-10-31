@@ -5,6 +5,9 @@
 #
 # Source code lives at the bundle root (AppKit project).
 # Path resolution: resources/*.yml uses ../ to reach bundle root.
+# source_code_path is set per target (dev, hls_fde) below, not here: the prod
+# target deploys from Git (git_source), and the CLI rejects an app that sets
+# both source_code_path and git_source.
 
 resources:
   apps:
@@ -13,7 +16,6 @@ resources:
       description: >
         Hi Genie Orchestrator — Supervisor dispatch API and Workstream MCP
         for durable orchestration context, bounded state, and semantic memory.
-      source_code_path: ..
       user_api_scopes:
         - sql
         - ai-gateway
@@ -85,25 +87,34 @@ targets:
     resources:
       apps:
         app:
+          source_code_path: ..
           permissions:
             - service_principal_name: "84b36586-1ca7-4756-b39e-551a79058c55"
               level: CAN_USE
             - user_name: matthew.giglia@databricks.com
               level: CAN_MANAGE
 
+  hls_fde:
+    resources:
+      apps:
+        app:
+          source_code_path: ..
+
   prod:
     resources:
       apps:
         app:
           # Git deployment — pulls source directly from the release branch.
-          # Container builds from Git; workspace source_code_path is ignored.
+          # Container builds from Git; no workspace source_code_path for this target.
           # For SIT: app_deploy.sh overrides with workspace-source deployment.
+          # NOTE: the `release` branch does not exist yet in this repo (2026-10-31);
+          # create it from main before the first prod deploy.
           git_repository:
-            url: https://github.com/matthew-gigl-db/brainstorming
+            url: https://github.com/mkgs-databricks-demos/hi-genie-orchestrator
             provider: gitHub
           git_source:
             branch: release
-            source_code_path: genie-workstream-orchestrator/hi-genie-orchestrator/mcp-hi-genie-orchestrator
-          permissions:
-            - user_name: matthew.giglia@databricks.com
-              level: CAN_MANAGE
+            source_code_path: hi-genie-orchestrator/mcp-hi-genie-orchestrator
+          # permissions: inherited from the prod target's top-level permissions
+          # in databricks.yml (an app-level CAN_MANAGE duplicate triggered a
+          # validate warning).
